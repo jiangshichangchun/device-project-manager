@@ -261,10 +261,14 @@ class ProjectRegistrar:
         """设置Node.js环境"""
         node_modules = path / 'node_modules'
 
+        # 检测包管理器
+        package_manager = self._detect_package_manager(path)
+
         # 安装依赖
         if not node_modules.exists():
-            print("📥 安装Node.js依赖...")
-            subprocess.run(['npm', 'install'], cwd=str(path), check=True)
+            print(f"📥 安装Node.js依赖 (使用 {package_manager})...")
+            install_cmd = {'npm': ['npm', 'install'], 'yarn': ['yarn'], 'pnpm': ['pnpm', 'install']}
+            subprocess.run(install_cmd[package_manager], cwd=str(path), check=True)
 
         # 获取Node版本
         result = subprocess.run(['node', '--version'], capture_output=True, text=True)
@@ -273,18 +277,65 @@ class ProjectRegistrar:
         # 读取package.json获取启动命令
         package_json = path / 'package.json'
         startup_cmd = 'node index.js'
+        default_ports = [3000, 8080]
+
         if package_json.exists():
             with open(package_json) as f:
                 pkg = json.load(f)
-                if 'scripts' in pkg and 'start' in pkg['scripts']:
-                    startup_cmd = pkg['scripts']['start']
+                scripts = pkg.get('scripts', {})
+
+                # 优先级: dev > start > serve > build
+                # 检测开发服务器启动命令
+                if 'dev' in scripts:
+                    startup_cmd = f'{package_manager} run dev'
+                elif 'start' in scripts:
+                    startup_cmd = f'{package_manager} start'
+                elif 'serve' in scripts:
+                    startup_cmd = f'{package_manager} run serve'
+                elif 'build' in scripts:
+                    # 如果只有 build 脚本，可能是静态项目
+                    startup_cmd = f'{package_manager} run build'
+
+                # 检测框架特定的默认端口
+                dependencies = pkg.get('dependencies', {})
+                dev_dependencies = pkg.get('devDependencies', {})
+
+                # Vite 默认 5173 端口
+                if 'vite' in dev_dependencies or 'vite' in dependencies:
+                    default_ports = [5173, 3000]
+                # Next.js 默认 3000 端口
+                elif 'next' in dependencies:
+                    default_ports = [3000]
+                # Nuxt 默认 3000 端口
+                elif 'nuxt' in dependencies:
+                    default_ports = [3000]
+                # React Scripts (CRA) 默认 3000 端口
+                elif 'react-scripts' in dependencies:
+                    default_ports = [3000]
+                # Vue CLI 默认 8080 端口
+                elif '@vue/cli-service' in dev_dependencies:
+                    default_ports = [8080]
 
         return {
             'version': version,
             'env_path': str(path / 'node_modules'),
             'startup_cmd': startup_cmd,
-            'default_ports': [3000, 8080],
+            'default_ports': default_ports,
+            'package_manager': package_manager,
         }
+
+    def _detect_package_manager(self, path: Path) -> str:
+        """检测项目使用的包管理器"""
+        # 检查锁文件
+        if (path / 'pnpm-lock.yaml').exists():
+            return 'pnpm'
+        elif (path / 'yarn.lock').exists():
+            return 'yarn'
+        elif (path / 'package-lock.json').exists():
+            return 'npm'
+
+        # 默认使用 npm
+        return 'npm'
 
     def _setup_go_env(self, path: Path) -> Dict[str, Any]:
         """设置Go环境"""
