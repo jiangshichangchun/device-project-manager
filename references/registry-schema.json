@@ -1,0 +1,430 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "project-registry-schema",
+  "title": "Project Registry Schema",
+  "description": "设备端项目注册表数据模型定义",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": ["project_name", "install_path", "runtime_env"],
+    "additionalProperties": false,
+    "properties": {
+      "project_name": {
+        "type": "string",
+        "description": "项目唯一标识名，用于命令行操作和API调用",
+        "pattern": "^[a-zA-Z][a-zA-Z0-9_-]*$",
+        "minLength": 1,
+        "maxLength": 64
+      },
+      "display_name": {
+        "type": "string",
+        "description": "项目展示名称，用于Web界面显示",
+        "maxLength": 128
+      },
+      "description": {
+        "type": "string",
+        "description": "项目描述",
+        "maxLength": 1024
+      },
+      "source": {
+        "type": "string",
+        "format": "uri",
+        "description": "项目来源地址（Git仓库URL或本地路径）"
+      },
+      "source_type": {
+        "type": "string",
+        "enum": ["github", "gitlab", "gitee", "gitea", "local", "archive", "other"],
+        "description": "项目来源类型"
+      },
+      "tags": {
+        "type": "array",
+        "description": "项目标签，用于分类和搜索",
+        "items": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "maxItems": 20
+      },
+      "install_time": {
+        "type": "string",
+        "format": "date-time",
+        "description": "项目注册时间"
+      },
+      "update_time": {
+        "type": "string",
+        "format": "date-time",
+        "description": "项目信息最后更新时间"
+      },
+      "runtime_env": {
+        "$ref": "#/definitions/RuntimeEnv"
+      },
+      "install_path": {
+        "type": "string",
+        "description": "项目安装路径",
+        "pattern": "^/.*$"
+      },
+      "ports": {
+        "type": "array",
+        "description": "项目使用的端口列表",
+        "items": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "minItems": 0,
+        "maxItems": 100
+      },
+      "size_mb": {
+        "type": "number",
+        "description": "项目占用磁盘空间（MB）",
+        "minimum": 0
+      },
+      "process": {
+        "$ref": "#/definitions/ProcessInfo"
+      },
+      "health": {
+        "$ref": "#/definitions/HealthInfo"
+      },
+      "artifacts_spec": {
+        "type": "array",
+        "description": "运行时产物路径模式（用于清理）",
+        "items": {
+          "type": "string"
+        }
+      },
+      "auto_restart_policy": {
+        "$ref": "#/definitions/AutoRestartPolicy"
+      },
+      "resource_limits": {
+        "$ref": "#/definitions/ResourceLimits"
+      },
+      "backup_config": {
+        "$ref": "#/definitions/BackupConfig"
+      },
+      "metadata": {
+        "type": "object",
+        "description": "自定义元数据",
+        "additionalProperties": true
+      }
+    }
+  },
+  "definitions": {
+    "RuntimeEnv": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["python", "node", "go", "java", "docker", "bash", "rust", "dotnet", "other"],
+          "description": "运行时类型"
+        },
+        "version": {
+          "type": "string",
+          "description": "运行时版本",
+          "pattern": "^[0-9]+(\\.[0-9]+)*(-[a-zA-Z0-9]+)?$"
+        },
+        "env_path": {
+          "type": "string",
+          "description": "隔离环境路径（如venv路径）"
+        },
+        "startup_cmd": {
+          "type": "string",
+          "description": "启动命令",
+          "minLength": 1
+        },
+        "stop_cmd": {
+          "type": "string",
+          "description": "停止命令（可选，默认发送SIGTERM）"
+        },
+        "health_check_cmd": {
+          "type": "string",
+          "description": "健康检查命令"
+        },
+        "health_check_url": {
+          "type": "string",
+          "format": "uri",
+          "description": "健康检查URL（HTTP方式）"
+        },
+        "env_vars": {
+          "type": "object",
+          "description": "环境变量",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "working_dir": {
+          "type": "string",
+          "description": "工作目录（默认为install_path）"
+        },
+        "user": {
+          "type": "string",
+          "description": "运行用户"
+        },
+        "umask": {
+          "type": "string",
+          "description": "文件权限掩码",
+          "pattern": "^[0-7]{3,4}$"
+        }
+      }
+    },
+    "ProcessInfo": {
+      "type": "object",
+      "properties": {
+        "main_pid": {
+          "type": ["integer", "null"],
+          "description": "主进程PID",
+          "minimum": 1
+        },
+        "child_pids": {
+          "type": "array",
+          "description": "子进程PID列表",
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "container_id": {
+          "type": ["string", "null"],
+          "description": "容器ID（Docker类型项目）",
+          "pattern": "^[a-f0-9]{12,64}$"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["stopped", "running", "crashed", "starting", "stopping", "corrupted", "unknown"],
+          "description": "进程状态"
+        },
+        "start_time": {
+          "type": ["string", "null"],
+          "format": "date-time",
+          "description": "启动时间"
+        },
+        "uptime_seconds": {
+          "type": "integer",
+          "description": "运行时长（秒）",
+          "minimum": 0
+        },
+        "crash_info": {
+          "$ref": "#/definitions/CrashInfo"
+        },
+        "restart_count": {
+          "type": "integer",
+          "description": "重启次数",
+          "minimum": 0
+        },
+        "exit_code": {
+          "type": ["integer", "null"],
+          "description": "退出码"
+        }
+      }
+    },
+    "CrashInfo": {
+      "type": ["object", "null"],
+      "properties": {
+        "exit_code": {
+          "type": "integer",
+          "description": "退出码"
+        },
+        "signal": {
+          "type": "string",
+          "description": "终止信号",
+          "enum": ["SIGTERM", "SIGKILL", "SIGSEGV", "SIGABRT", "SIGFPE", "SIGBUS", "SIGPIPE", "SIGHUP", "SIGINT", "SIGQUIT", "SIGILL", "SIGTRAP", "SIGEMT", "SIGSYS", "SIGXCPU", "SIGXFSZ", "SIGVTALRM", "SIGPROF", "SIGUSR1", "SIGUSR2", "other"]
+        },
+        "time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "崩溃时间"
+        },
+        "stack_trace": {
+          "type": "string",
+          "description": "堆栈跟踪"
+        },
+        "error_message": {
+          "type": "string",
+          "description": "错误信息"
+        }
+      }
+    },
+    "HealthInfo": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["healthy", "degraded", "unhealthy", "unknown"],
+          "description": "健康状态"
+        },
+        "last_check_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "最后检查时间"
+        },
+        "check_interval_seconds": {
+          "type": "integer",
+          "description": "检查间隔（秒）",
+          "minimum": 1,
+          "default": 30
+        },
+        "consecutive_failures": {
+          "type": "integer",
+          "description": "连续失败次数",
+          "minimum": 0
+        },
+        "issues": {
+          "type": "array",
+          "description": "问题列表",
+          "items": {
+            "type": "string"
+          }
+        },
+        "last_healthy_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "最后健康时间"
+        },
+        "response_time_ms": {
+          "type": "number",
+          "description": "健康检查响应时间（毫秒）",
+          "minimum": 0
+        }
+      }
+    },
+    "AutoRestartPolicy": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "是否启用自动重启",
+          "default": false
+        },
+        "max_retries": {
+          "type": "integer",
+          "description": "最大重试次数",
+          "minimum": 0,
+          "default": 3
+        },
+        "retry_count": {
+          "type": "integer",
+          "description": "当前重试计数",
+          "minimum": 0,
+          "default": 0
+        },
+        "backoff_seconds": {
+          "type": "integer",
+          "description": "退避等待时间（秒）",
+          "minimum": 1,
+          "default": 5
+        },
+        "backoff_multiplier": {
+          "type": "number",
+          "description": "退避倍数",
+          "minimum": 1,
+          "default": 2
+        },
+        "max_backoff_seconds": {
+          "type": "integer",
+          "description": "最大退避时间（秒）",
+          "minimum": 1,
+          "default": 300
+        },
+        "reset_after_seconds": {
+          "type": "integer",
+          "description": "成功运行多久后重置重试计数",
+          "minimum": 60,
+          "default": 300
+        }
+      }
+    },
+    "ResourceLimits": {
+      "type": "object",
+      "properties": {
+        "cpu_percent_max": {
+          "type": "integer",
+          "description": "CPU使用率上限（%）",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "memory_mb_max": {
+          "type": "integer",
+          "description": "内存使用上限（MB）",
+          "minimum": 1
+        },
+        "file_descriptors_max": {
+          "type": "integer",
+          "description": "文件描述符上限",
+          "minimum": 1
+        },
+        "processes_max": {
+          "type": "integer",
+          "description": "最大进程数",
+          "minimum": 1
+        },
+        "disk_read_mb_max": {
+          "type": "integer",
+          "description": "磁盘读取速率上限（MB/s）",
+          "minimum": 1
+        },
+        "disk_write_mb_max": {
+          "type": "integer",
+          "description": "磁盘写入速率上限（MB/s）",
+          "minimum": 1
+        },
+        "network_in_mb_max": {
+          "type": "integer",
+          "description": "网络入流量上限（MB/s）",
+          "minimum": 1
+        },
+        "network_out_mb_max": {
+          "type": "integer",
+          "description": "网络出流量上限（MB/s）",
+          "minimum": 1
+        }
+      }
+    },
+    "BackupConfig": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "是否启用备份",
+          "default": true
+        },
+        "paths": {
+          "type": "array",
+          "description": "需要备份的路径",
+          "items": {
+            "type": "string"
+          }
+        },
+        "exclude_patterns": {
+          "type": "array",
+          "description": "排除模式（glob格式）",
+          "items": {
+            "type": "string"
+          }
+        },
+        "include_patterns": {
+          "type": "array",
+          "description": "包含模式（glob格式）",
+          "items": {
+            "type": "string"
+          }
+        },
+        "backup_dir": {
+          "type": "string",
+          "description": "备份存储目录"
+        },
+        "compression": {
+          "type": "string",
+          "description": "压缩格式",
+          "enum": ["none", "gzip", "bzip2", "xz"],
+          "default": "gzip"
+        },
+        "retention_days": {
+          "type": "integer",
+          "description": "备份保留天数",
+          "minimum": 1,
+          "default": 30
+        }
+      }
+    }
+  }
+}
